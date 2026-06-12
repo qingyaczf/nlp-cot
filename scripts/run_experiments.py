@@ -33,6 +33,7 @@ EXPERIMENTS = [
     ("base_cot", []),
     ("rag_cot", ["--top_k", "3"]),
     ("self_consistency", ["--n_paths", "3"]),
+    ("prefix_consistency", ["--n_paths", "3", "--truncation_ratio", "0.5", "--regen_count", "3", "--weight_fn", "linear"]),
     ("multi_agent_debate", ["--n_agents", "3", "--n_rounds", "2"]),
     ("step_verifier", ["--n_paths", "3"]),
 ]
@@ -103,7 +104,7 @@ def run_all_serial(experiments):
     print(f"\n{'#'*60}")
     print("# COT 大规模实验 — 串行模式")
     print(f"# 样本数: {N_SAMPLES} | 模型: {MODEL}")
-    print(f"# 预计总耗时: base(~30min) + rag(~10min) + sc(~60min) + mad(~2h) + sv(~5h)")
+    print(f"# 预计总耗时: base(~30min) + rag(~10min) + sc(~60min) + pc(~90min) + mad(~2h) + sv(~5h)")
     print(f"{'#'*60}\n")
 
     results = []

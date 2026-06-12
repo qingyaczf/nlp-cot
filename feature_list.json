@@ -79,6 +79,14 @@
       "dependencies": ["feat-008", "feat-009"],
       "status": "completed",
       "evidence": "strategies/base.py 增加 harness_subsystems 声明；各策略声明五子系统覆盖；harness_report.py 生成覆盖矩阵；verify_feat010.py 验证通过"
+    },
+    {
+      "id": "feat-011",
+      "name": "Prefix Consistency 策略实现",
+      "description": "基于 Prefix Consistency（PC-WMV）的可靠性加权投票策略：截断 CoT 前缀并再生，用答案复现率作为权重进行加权多数投票，达到标准 Self-Consistency 准确率的同时显著降低 token 消耗",
+      "dependencies": ["feat-005"],
+      "status": "completed",
+      "evidence": "strategies/prefix_consistency.py 实现截断-再生-加权投票全流程；支持 linear/quadratic/cubic/unanimous 权重函数；verify_feat011.py 干跑验证通过"
     }
   ]
 }

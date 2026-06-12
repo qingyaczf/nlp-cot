@@ -19,6 +19,7 @@ from strategies import (
     StepAwareVerifierStrategy,
     RAGCOTStrategy,
     MultiAgentDebateStrategy,
+    PrefixConsistencyStrategy,
 )
 from retrieval import SimpleKeywordRetriever
 
@@ -54,6 +55,7 @@ def main():
     strategies = [
         ("base_cot", BaseCOTStrategy(model, task)),
         ("self_consistency", SelfConsistencyStrategy(model, task)),
+        ("prefix_consistency", PrefixConsistencyStrategy(model, task)),
         ("step_verifier", StepAwareVerifierStrategy(model, task)),
         ("rag_cot", RAGCOTStrategy(model, task, retriever)),
         ("multi_agent_debate", MultiAgentDebateStrategy(model, task)),
@@ -88,6 +90,7 @@ def main():
     print()
     print("base_cot            → I + E               (baseline)")
     print("self_consistency    → I + E + S           (add state: multiple paths)")
+    print("prefix_consistency  → I + E + S + F       (add feedback: prefix regeneration reliability)")
     print("rag_cot             → I + E + S + T       (add tools: retriever)")
     print("step_verifier       → I + E + S + T + F   (add feedback: verifier)")
     print("multi_agent_debate  → I + E + S + F       (add feedback: inter-agent critique)")
@@ -95,6 +98,8 @@ def main():
     print("Key insight: advanced strategies progressively activate more Harness")
     print("subsystems. The full 5-subsystem coverage (step_verifier) represents")
     print("the deepest integration of Harness Engineering design philosophy.")
+    print("Prefix consistency achieves Feedback coverage without Tools, making it")
+    print("a lightweight yet powerful alternative to step_verifier.")
     print("=" * 70)
 
 

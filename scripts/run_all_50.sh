@@ -1,5 +1,5 @@
 #!/bin/bash
-# Run all 5 COT strategies on 50 AQuA samples
+# Run all 6 COT strategies on 50 AQuA samples
 # Usage: bash scripts/run_all_50.sh
 # Note: step_verifier is very slow (~5min/sample, ~4-5h total)
 
@@ -26,10 +26,11 @@ echo "Estimated time:"
 echo "  base_cot           ~ 30 min"
 echo "  rag_cot            ~ 10 min"
 echo "  self_consistency   ~ 60 min (3 paths)"
+echo "  prefix_consistency ~ 90 min (3 paths + 3 regens each)"
 echo "  multi_agent_debate ~ 120 min (3 agents x 2 rounds)"
 echo "  step_verifier      ~ 240-300 min (3 paths + step verification)"
 echo ""
-echo "Total: ~7-9 hours if run sequentially"
+echo "Total: ~8-10 hours if run sequentially"
 echo "========================================"
 echo ""
 
@@ -55,7 +56,7 @@ python harness.py \
   --top_k 3
 
 # Strategy 3: self_consistency
-echo "[3/5] Running self_consistency..."
+echo "[3/6] Running self_consistency..."
 python harness.py \
   --strategy self_consistency \
   --dataset aqua \
@@ -65,8 +66,22 @@ python harness.py \
   --model $MODEL \
   --n_paths 3
 
-# Strategy 4: multi_agent_debate
-echo "[4/5] Running multi_agent_debate..."
+# Strategy 4: prefix_consistency
+echo "[4/6] Running prefix_consistency..."
+python harness.py \
+  --strategy prefix_consistency \
+  --dataset aqua \
+  --n_samples $N_SAMPLES \
+  --api_key $API_KEY \
+  --base_url $BASE_URL \
+  --model $MODEL \
+  --n_paths 3 \
+  --truncation_ratio 0.5 \
+  --regen_count 3 \
+  --weight_fn linear
+
+# Strategy 5: multi_agent_debate
+echo "[5/6] Running multi_agent_debate..."
 python harness.py \
   --strategy multi_agent_debate \
   --dataset aqua \
@@ -77,8 +92,8 @@ python harness.py \
   --n_agents 3 \
   --n_rounds 2
 
-# Strategy 5: step_verifier (very slow!)
-echo "[5/5] Running step_verifier..."
+# Strategy 6: step_verifier (very slow!)
+echo "[6/6] Running step_verifier..."
 echo "WARNING: This will take ~4-5 hours. Press Ctrl+C to skip if needed."
 python harness.py \
   --strategy step_verifier \
@@ -94,4 +109,4 @@ echo ""
 echo "========================================"
 echo "All experiments complete! Generating report..."
 echo "========================================"
-python -m eval.analyze --runs_dir experiments/runs --latest 5
+python -m eval.analyze --runs_dir experiments/runs --latest 6

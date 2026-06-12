@@ -104,6 +104,11 @@ echo "[5.10/6] Verifying feat-010 (Harness Engineering Integration)..."
 python tests/verify_feat010.py >/dev/null 2>&1 || { echo "Error: feat-010 verification failed"; exit 1; }
 echo "  feat-010 OK"
 
+# 验证 feat-011 Prefix Consistency 策略
+echo "[5.11/6] Verifying feat-011 (Prefix Consistency)..."
+python tests/verify_feat011.py >/dev/null 2>&1 || { echo "Error: feat-011 verification failed"; exit 1; }
+echo "  feat-011 OK"
+
 # 显示当前功能状态
 echo "[6/6] Current feature status:"
 python -c "

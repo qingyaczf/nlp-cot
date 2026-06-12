@@ -27,6 +27,7 @@ from strategies import (
     StepAwareVerifierStrategy,
     RAGCOTStrategy,
     MultiAgentDebateStrategy,
+    PrefixConsistencyStrategy,
 )
 from tasks import AQuATask
 
@@ -39,6 +40,7 @@ def load_strategy(strategy_name: str, model, task, **kwargs):
         "step_verifier": StepAwareVerifierStrategy,
         "rag_cot": RAGCOTStrategy,
         "multi_agent_debate": MultiAgentDebateStrategy,
+        "prefix_consistency": PrefixConsistencyStrategy,
     }
     if strategy_name not in registry:
         raise ValueError(f"Unknown strategy: {strategy_name}. Available: {list(registry.keys())}")
@@ -203,7 +205,10 @@ def main():
         help="Base URL for the API endpoint (default: DMXAPI)",
     )
     # Strategy-specific parameters
-    parser.add_argument("--n_paths", type=int, default=5, help="Number of reasoning paths (for self_consistency / step_verifier)")
+    parser.add_argument("--n_paths", type=int, default=5, help="Number of reasoning paths (for self_consistency / step_verifier / prefix_consistency)")
+    parser.add_argument("--truncation_ratio", type=float, default=0.5, help="CoT truncation ratio for prefix regeneration (for prefix_consistency)")
+    parser.add_argument("--regen_count", type=int, default=3, help="Number of regenerations per prefix (for prefix_consistency)")
+    parser.add_argument("--weight_fn", type=str, default="linear", help="Weight function for prefix consistency voting: linear/quadratic/cubic/unanimous")
     parser.add_argument("--n_agents", type=int, default=3, help="Number of agents (for multi_agent_debate)")
     parser.add_argument("--n_rounds", type=int, default=2, help="Number of debate rounds (for multi_agent_debate)")
     parser.add_argument("--top_k", type=int, default=3, help="Number of retrieved docs (for rag_cot)")
@@ -212,8 +217,12 @@ def main():
 
     # Strategy-specific kwargs
     strategy_kwargs = {}
-    if args.strategy in ("self_consistency", "step_verifier"):
+    if args.strategy in ("self_consistency", "step_verifier", "prefix_consistency"):
         strategy_kwargs["n_paths"] = args.n_paths
+    if args.strategy == "prefix_consistency":
+        strategy_kwargs["truncation_ratio"] = args.truncation_ratio
+        strategy_kwargs["regen_count"] = args.regen_count
+        strategy_kwargs["weight_fn"] = args.weight_fn
     if args.strategy == "multi_agent_debate":
         strategy_kwargs["n_agents"] = args.n_agents
         strategy_kwargs["n_rounds"] = args.n_rounds
