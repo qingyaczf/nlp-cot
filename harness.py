@@ -19,7 +19,7 @@ from typing import Any, Dict, List, Optional
 from tqdm import tqdm
 
 from eval.metrics import compute_metrics
-from models import OpenAIModel
+from models import OpenAIModel, DebertaStepVerifier
 from retrieval import SimpleKeywordRetriever
 from strategies import (
     BaseCOTStrategy,
@@ -28,6 +28,7 @@ from strategies import (
     RAGCOTStrategy,
     MultiAgentDebateStrategy,
     PrefixConsistencyStrategy,
+    FewShotCOTStrategy,
 )
 from tasks import AQuATask
 
@@ -41,6 +42,7 @@ def load_strategy(strategy_name: str, model, task, **kwargs):
         "rag_cot": RAGCOTStrategy,
         "multi_agent_debate": MultiAgentDebateStrategy,
         "prefix_consistency": PrefixConsistencyStrategy,
+        "few_shot_cot": FewShotCOTStrategy,
     }
     if strategy_name not in registry:
         raise ValueError(f"Unknown strategy: {strategy_name}. Available: {list(registry.keys())}")
@@ -205,20 +207,32 @@ def main():
         help="Base URL for the API endpoint (default: DMXAPI)",
     )
     # Strategy-specific parameters
-    parser.add_argument("--n_paths", type=int, default=5, help="Number of reasoning paths (for self_consistency / step_verifier / prefix_consistency)")
+    parser.add_argument("--n_paths", type=int, default=5, help="Number of reasoning paths per prompt (for self_consistency / step_verifier / prefix_consistency)")
+    parser.add_argument("--n_prompts", type=int, default=3, help="Number of diverse prompts (for step_verifier)")
     parser.add_argument("--truncation_ratio", type=float, default=0.5, help="CoT truncation ratio for prefix regeneration (for prefix_consistency)")
     parser.add_argument("--regen_count", type=int, default=3, help="Number of regenerations per prefix (for prefix_consistency)")
     parser.add_argument("--weight_fn", type=str, default="linear", help="Weight function for prefix consistency voting: linear/quadratic/cubic/unanimous")
     parser.add_argument("--n_agents", type=int, default=3, help="Number of agents (for multi_agent_debate)")
     parser.add_argument("--n_rounds", type=int, default=2, help="Number of debate rounds (for multi_agent_debate)")
     parser.add_argument("--top_k", type=int, default=3, help="Number of retrieved docs (for rag_cot)")
+    parser.add_argument("--n_shots", type=int, default=5, help="Number of few-shot examples (for few_shot_cot)")
+    parser.add_argument("--local_verifier", action="store_true", help="Use local DeBERTa verifier instead of LLM verifier")
+    parser.add_argument("--verifier_model_path", type=str, default="data/checkpoint", help="Path to the local verifier model checkpoint")
 
     args = parser.parse_args()
 
     # Strategy-specific kwargs
     strategy_kwargs = {}
+    if args.strategy == "step_verifier" and args.local_verifier:
+        print(f"Loading local verifier from {args.verifier_model_path} ...")
+        strategy_kwargs["local_verifier"] = DebertaStepVerifier(
+            model_path=args.verifier_model_path,
+        )
+        print(f"  → {strategy_kwargs['local_verifier']}")
     if args.strategy in ("self_consistency", "step_verifier", "prefix_consistency"):
         strategy_kwargs["n_paths"] = args.n_paths
+    if args.strategy == "step_verifier":
+        strategy_kwargs["n_prompts"] = args.n_prompts
     if args.strategy == "prefix_consistency":
         strategy_kwargs["truncation_ratio"] = args.truncation_ratio
         strategy_kwargs["regen_count"] = args.regen_count
@@ -228,6 +242,8 @@ def main():
         strategy_kwargs["n_rounds"] = args.n_rounds
     if args.strategy == "rag_cot":
         strategy_kwargs["top_k"] = args.top_k
+    if args.strategy == "few_shot_cot":
+        strategy_kwargs["n_shots"] = args.n_shots
 
     run_experiment(
         strategy_name=args.strategy,

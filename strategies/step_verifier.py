@@ -12,7 +12,9 @@ Harness Engineering integration:
 - Feedback: verifier feedback directly influences final answer selection
 - Tools: the verifier acts as a meta-reasoning tool over the generator output
 """
+import json
 import os
+import random
 import re
 from typing import Dict, Any, List
 
@@ -20,7 +22,14 @@ from .base import BaseStrategy
 
 
 class StepAwareVerifierStrategy(BaseStrategy):
-    """Step-Aware Verifier: score each step of reasoning, pick the best path."""
+    """Step-Aware Verifier: score each step of reasoning, pick the best path.
+
+    Supports two verification modes:
+      - LLM verifier (default): uses the same model via prompt to score steps.
+      - Local verifier: uses a DeBERTa (or other local) model passed as
+        ``local_verifier``. When provided, ``_verify_step`` calls
+        ``local_verifier.score_step()`` instead of the LLM, saving API costs.
+    """
 
     def harness_subsystems(self) -> Dict[str, bool]:
         return {
@@ -35,19 +44,25 @@ class StepAwareVerifierStrategy(BaseStrategy):
         self,
         model,
         task,
-        prompt_template_path: str = "prompts/base_cot.txt",
+        prompt_template_path: str = "prompts/few_shot_cot.txt",
         verifier_prompt_path: str = "prompts/step_verifier.txt",
         n_paths: int = 5,
+        n_prompts: int = 3,
         generator_temperature: float = 0.7,
         verifier_temperature: float = 0.1,
+        local_verifier=None,
+        few_shot_data_path: str = "data/AQuA/test.json",
         **kwargs
     ):
         super().__init__(name="step_verifier", model=model, task=task, **kwargs)
         self.n_paths = n_paths
+        self.n_prompts = n_prompts
         self.generator_temperature = generator_temperature
         self.verifier_temperature = verifier_temperature
+        self.local_verifier = local_verifier
         self.prompt_template_path = prompt_template_path
         self.verifier_prompt_path = verifier_prompt_path
+        self.few_shot_data_path = few_shot_data_path
         self.prompt_template = self._load_prompt_template()
         self.verifier_template = self._load_verifier_template()
 
@@ -63,6 +78,18 @@ class StepAwareVerifierStrategy(BaseStrategy):
             )
         with open(self.prompt_template_path, "r", encoding="utf-8") as f:
             return f.read()
+
+    def get_strategy_info(self) -> Dict[str, Any]:
+        """Return strategy metadata, including verifier type (JSON-safe)."""
+        info = super().get_strategy_info()
+        info["verifier"] = (
+            "local"
+            if self.local_verifier is not None
+            else "LLM"
+        )
+        if self.local_verifier is not None:
+            info["verifier_model_info"] = self.local_verifier.get_model_info()
+        return info
 
     def _load_verifier_template(self) -> str:
         if not os.path.exists(self.verifier_prompt_path):
@@ -86,6 +113,63 @@ class StepAwareVerifierStrategy(BaseStrategy):
             "Respond with ONLY a numeric score on a single line:\n"
             "Score: X"
         )
+
+    # ──────────────────────────────────────────────
+    #  Diverse prompt generation (N prompts × M paths)
+    # ──────────────────────────────────────────────
+
+    def _load_few_shot_pool(self) -> List[Dict[str, Any]]:
+        """Load AQuA data and return a list of candidate few-shot samples."""
+        if not hasattr(self, "_pool_cache"):
+            pool = []
+            path = self.few_shot_data_path
+            if os.path.exists(path):
+                with open(path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line:
+                            pool.append(json.loads(line))
+            self._pool_cache = pool
+        return self._pool_cache
+
+    def _build_diverse_prompts(self, question: str, options: str, n: int) -> List[str]:
+        """
+        Build ``n`` different prompts for the same question.
+
+        Each prompt gets a different random set of few-shot examples from
+        the AQuA pool, producing naturally diverse generation contexts.
+        """
+        pool = self._load_few_shot_pool()
+        prompts = []
+
+        for i in range(n):
+            # Sample 3 random few-shot examples (no overlap within this batch)
+            k = min(3, len(pool))
+            shots = random.sample(pool, k)
+
+            shot_blocks = []
+            for s in shots:
+                q = s.get("question", "")
+                o = " ".join(s.get("options", []))
+                c = s.get("correct", "")
+                shot_blocks.append(
+                    f"Example {i+1}:\n"
+                    f"Question: {q}\n"
+                    f"Options: {o}\n"
+                    f"Answer: {c}\n"
+                )
+
+            few_shot_text = "\n".join(shot_blocks)
+            prompts.append(
+                f"You are solving math word problems. Here are some examples:\n\n"
+                f"{few_shot_text}\n"
+                f"Now solve:\n\n"
+                f"Question: {question}\n"
+                f"Options: {options}\n\n"
+                f"Let's think step by step."
+            )
+
+        return prompts
 
     def _split_into_steps(self, text: str) -> List[str]:
         """
@@ -130,9 +214,22 @@ class StepAwareVerifierStrategy(BaseStrategy):
         step: str
     ) -> float:
         """
-        Ask the verifier model to score a single reasoning step.
-        Returns a float score between 0 and 10.
+        Score a single reasoning step. Returns a float between 0 and 10.
+
+        If ``self.local_verifier`` is set, delegates to its
+        ``score_step()`` method (no API call).  Otherwise falls back to
+        the LLM-based verifier prompt.
         """
+        # ── Local verifier (DeBERTa, etc.) ──
+        if self.local_verifier is not None:
+            return self.local_verifier.score_step(
+                question=question,
+                options=options,
+                previous_steps=previous_steps,
+                step=step,
+            )
+
+        # ── LLM-based verifier (original behaviour) ──
         prompt = self.verifier_template.format(
             question=question,
             options=options,
@@ -164,27 +261,34 @@ class StepAwareVerifierStrategy(BaseStrategy):
         options = example.get("options", [])
         options_text = " ".join(options)
 
-        # --- Phase 1: Generate multiple reasoning paths ---
-        n = kwargs.get("n_paths", self.n_paths)
+        # --- Phase 1: Generate diverse reasoning paths ---
+        n_prompts = kwargs.get("n_prompts", self.n_prompts)
+        n_per_prompt = kwargs.get("n_paths", self.n_paths)
         gen_temp = kwargs.get("generator_temperature", self.generator_temperature)
         max_tokens = kwargs.get("max_tokens", 1024)
 
-        prompt = self.prompt_template.format(question=question, options=options_text)
-        # Generate multiple reasoning paths via sequential calls
+        # Build N different prompts (each with different random few-shot examples)
+        diverse_prompts = self._build_diverse_prompts(question, options_text, n_prompts)
+        total_paths = n_prompts * n_per_prompt
+
         outputs = []
-        for i in range(n):
-            print(f"    [Step-Verifier] Generating path {i+1}/{n}...", end=" ")
-            batch = self.model.generate(
-                prompt,
-                temperature=gen_temp,
-                max_tokens=max_tokens,
-                n=1,
-            )
-            outputs.extend(batch)
-            pred_preview = self.task.extract_answer(batch[0]) if batch else ""
-            print(f"→ {pred_preview}")
+        prompt_idx = 0
+        for pi, prompt in enumerate(diverse_prompts):
+            print(f"    [Step-Verifier] Prompt {pi+1}/{n_prompts}, generating {n_per_prompt} paths...")
+            for j in range(n_per_prompt):
+                batch = self.model.generate(
+                    prompt,
+                    temperature=gen_temp,
+                    max_tokens=max_tokens,
+                    n=1,
+                )
+                outputs.extend(batch)
+                pred_preview = self.task.extract_answer(batch[0]) if batch else ""
+                print(f"      path {j+1}/{n_per_prompt} → {pred_preview}")
 
         # --- Phase 2: Verify each path step by step ---
+        verifier_mode = "local (DeBERTa)" if self.local_verifier else "LLM"
+        print(f"    [Step-Verifier] Verifying {len(outputs)} paths via {verifier_mode}...")
         path_scores: List[float] = []
         path_details: List[List[Dict[str, Any]]] = []
         predictions: List[str] = []
@@ -218,25 +322,46 @@ class StepAwareVerifierStrategy(BaseStrategy):
             path_scores.append(avg_score)
             path_details.append(step_records)
 
-        # --- Phase 3: Select the best path ---
-        best_idx = 0
-        best_score = -1.0
-        for idx, score in enumerate(path_scores):
-            if score > best_score:
-                best_score = score
-                best_idx = idx
+        # --- Phase 3: Weighted voting ---
+        # Each path's avg step score = voting weight
+        answer_labels = ["A", "B", "C", "D", "E"]
+        vote_weights = {a: 0.0 for a in answer_labels}
+        vote_paths: Dict[str, List[int]] = {a: [] for a in answer_labels}
 
-        final_prediction = predictions[best_idx] if predictions else ""
+        for idx, (pred, score) in enumerate(zip(predictions, path_scores)):
+            pred = pred.upper().strip()
+            if pred in vote_weights:
+                vote_weights[pred] += score
+                vote_paths[pred].append(idx + 1)
+
+        # Sort answers by total weight descending
+        ranked = sorted(vote_weights.items(), key=lambda x: -x[1])
+        final_prediction = ranked[0][0] if ranked[0][1] > 0 else (predictions[0] if predictions else "")
+        total_weight = sum(path_scores)
+
+        # Best individual path (for reference)
+        best_idx = max(range(len(path_scores)), key=lambda i: path_scores[i]) if path_scores else 0
+        best_score = path_scores[best_idx] if path_scores else 0.0
         best_output = outputs[best_idx] if outputs else ""
 
         # Build summary output
         summary_lines = [
-            f"=== Step-Aware Verifier ({n} paths) ===",
-            f"Selected Path: {best_idx + 1} (avg step score: {best_score:.2f})",
+            f"=== Step-Aware Verifier ({total_paths} paths, {n_prompts} prompts) ===",
+            f"Weighted Voting Result:",
+        ]
+        for ans, weight in ranked:
+            marker = " <<<<" if ans == final_prediction else ""
+            paths_str = f" (paths: {vote_paths[ans]})" if vote_paths[ans] else ""
+            pct = f" {weight/total_weight*100:.0f}%" if total_weight > 0 else ""
+            summary_lines.append(
+                f"  {ans}: weight={weight:.3f}{pct}{paths_str}{marker}"
+            )
+        summary_lines.extend([
             f"Final Answer: {final_prediction}",
             "",
-            "--- Step Scores ---",
-        ]
+            f"Best individual path: Path {best_idx + 1} (avg step score: {best_score:.2f})",
+            "--- Step Scores of Best Path ---",
+        ])
         for i, rec in enumerate(path_details[best_idx]):
             summary_lines.append(f"Step {i+1} (score {rec['score']:.1f}): {rec['step'][:100]}...")
         summary_lines.extend(["", "--- Full Selected Path ---", best_output])
@@ -246,8 +371,9 @@ class StepAwareVerifierStrategy(BaseStrategy):
             "prediction": final_prediction,
             "output": summary_output,
             "metadata": {
-                "prompt": prompt,
-                "n_paths": n,
+                "n_prompts": n_prompts,
+                "n_paths": n_per_prompt,
+                "verifier": "local" if self.local_verifier is not None else "LLM",
                 "all_outputs": outputs,
                 "all_predictions": predictions,
                 "path_scores": path_scores,

@@ -43,7 +43,7 @@ skills-lock.json
 .DS_Store
 Thumbs.db
 
-# Large dataset files that can be fetched separately
-# data/*.json
-# data/*.jsonl
+# Large model weights and dataset files
+data/checkpoint/model.safetensors
+data/AQuA/
 experiments/runs/verify_*.json

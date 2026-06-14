@@ -1,0 +1,14 @@
+You are a math reasoning assistant.
+
+Here are some examples:
+
+{few_shot_examples}
+
+Now solve this problem.
+
+Produce a reasoning that leads to your chosen answer.
+
+Question: {question}
+Options: {options}
+
+Let's think step by step.

@@ -6,14 +6,15 @@
 
 ## 📋 项目简介
 
-本项目基于 OpenAI-compatible API（DMXAPI / deepseek-v4-flash），在 AQuA（Algebraic Word Problems）数据集上实现并对比 6 种 CoT 推理策略：
+本项目基于 OpenAI-compatible API（DMXAPI / deepseek-v4-flash），在 AQuA（Algebraic Word Problems）数据集上实现并对比 7 种 CoT 推理策略：
 
 1. **Base COT** — 基础思维链推理
 2. **Self-Consistency** — 多路径采样 + 路径质量加权投票
 3. **Prefix Consistency** — 截断再生可靠性加权投票
-4. **Step-Aware Verifier** — 步骤级验证与最优路径筛选
-5. **RAG + COT** — 检索增强思维链
-6. **Multi-Agent Debate** — 多 Agent 协作辩论推理
+4. **Step-Aware Verifier** — 步骤级验证 + 本地 DeBERTa verifier（支持 LLM 和本地双模式）
+5. **Few-Shot CoT** — 随机采样示例的少样本思维链
+6. **RAG + COT** — 检索增强思维链
+7. **Multi-Agent Debate** — 多 Agent 协作辩论推理
 
 **核心设计**：借鉴 [Harness Engineering](https://github.com/walkinglabs/learn-harness-engineering) 的五子系统思想（Instructions / Tools / Environment / State / Feedback），将每种 CoT 策略映射到 Harness 子系统，系统化地设计、实现与评估推理框架。
 
@@ -25,25 +26,27 @@
 .
 ├── data/
 │   ├── AQuA/                   # 🔗 git submodule → deepmind/AQuA
+│   ├── checkpoint/             # 本地 DeBERTa verifier 权重（config.json + model.safetensors）
 │   └── knowledge_base.json     # RAG 检索知识库
 ├── prompts/                    # CoT 策略 Prompt 模板
 │   ├── base_cot.txt
+│   ├── few_shot_cot.txt        # Few-Shot CoT 模板（{few_shot_examples}）
 │   ├── rag_cot.txt
 │   └── step_verifier.txt
-├── strategies/                 # 6 种 CoT 策略实现
+├── strategies/                 # 7 种 CoT 策略实现
 │   ├── base.py                 # 策略基类（含 Harness 子系统声明）
 │   ├── base_cot.py
 │   ├── self_consistency.py
 │   ├── prefix_consistency.py   # 截断再生可靠性加权投票
-│   ├── step_verifier.py
+│   ├── step_verifier.py        # 步骤级验证 + 本地 DeBERTa verifier
+│   ├── few_shot_cot.py         # Few-Shot CoT（随机采样示例 + LLM 生成推理链）
 │   ├── rag_cot.py
 │   └── multi_agent_debate.py
-├── tasks/                      # 任务环境定义
-│   ├── aqua_task.py            # AQuA 数据集加载与评估
-│   └── base.py
-├── models/                     # LLM 接口封装
+├── models/                     # LLM 接口封装 + 本地验证器
 │   ├── base.py
-│   └── openai_api.py           # OpenAI-compatible API 封装
+│   ├── openai_api.py           # OpenAI-compatible API 封装
+│   └── deberta_verifier.py     # DeBERTa-v3 步验证器
+├── deberta_model.py            # 自定义 DeBERTaV2ForTokenClassification
 ├── eval/                       # 评估指标与分析工具
 │   ├── metrics.py              # 准确率、推理步数、Token 估算
 │   └── analyze.py              # 多实验对比分析
@@ -143,8 +146,14 @@ python harness.py --strategy prefix_consistency --dataset aqua --n_paths 3 --tru
 # Multi-Agent Debate（3 个 Agent × 2 轮辩论）
 python harness.py --strategy multi_agent_debate --dataset aqua --n_agents 3 --n_rounds 2
 
-# Step-Aware Verifier（3 条路径 + 每步验证）
+# Step-Aware Verifier + 本地 DeBERTa（3 prompts × 5 路径）
+python harness.py --strategy step_verifier --dataset aqua --n_prompts 3 --n_paths 5 --local_verifier
+
+# 纯 LLM Verifier（无本地模型）
 python harness.py --strategy step_verifier --dataset aqua --n_paths 3
+
+# Few-Shot CoT（5 个随机示例）
+python harness.py --strategy few_shot_cot --dataset aqua --n_shots 5
 ```
 
 ### 批量测试（50 条样本）
@@ -202,7 +211,7 @@ python harness_report.py
 
 ---
 
-## 🧠 六种 CoT 策略详解
+## 🧠 七种 CoT 策略详解
 
 ### 1. Base COT
 
@@ -227,12 +236,23 @@ python harness_report.py
 
 ### 4. Step-Aware Verifier
 
-- **原理**：生成多条推理路径后，对每条路径的每一步调用 Verifier 模型打分，筛选总分最高的路径
-- **参数**：`--n_paths N`（推理路径数，默认 3）
+- **原理**：生成多条推理路径后，对每条路径调用 Verifier 模型打分，最终通过**加权投票**聚合答案（每条路径的 Verifier 得分作为投票权重）。
+- **双模式支持**：
+  - **LLM Verifier**（默认）：用 LLM 对路径的每一步打分，耗时长但通用
+  - **本地 DeBERTa Verifier**（`--local_verifier`）：加载自定义训练的 DeBERTa-v3-large Token 分类模型，取 `[CLS]` 位置 `SOLUTION-CORRECT` 的 softmax 概率作为路径分。推理在本地 CUDA 上运行，**零 API 费用**，速度大幅提升
+- **多 Prompt 多样生成**：支持 `--n_prompts` 个不同 prompt（各含随机 few-shot 示例），每个 prompt 生成 `--n_paths` 条路径
+- **参数**：`--n_paths N`（每 prompt 路径数，默认 5），`--n_prompts N`（不同 prompt 数，默认 3），`--local_verifier`（启用本地 DeBERTa verifier），`--verifier_model_path PATH`（模型路径，默认 `data/checkpoint/`）
 - **Harness 覆盖**：Instructions + Tools + Environment + State + Feedback（5/5）
-- **特点**：完整覆盖 Harness 五子系统，提供步骤级可解释性，但 API 调用量巨大、速度极慢
+- **特点**：完整覆盖 Harness 五子系统。本地 verifier 模式下，50 样本测试从 **206.6s/题**（LLM verifier）降至 **52.3s/题**（本地 verifier），快 4 倍
 
-### 5. RAG + COT
+### 5. Few-Shot CoT
+
+- **原理**：在 prompt 中加入随机采样的 AQuA 示例作为少样本示范，引导 LLM 参照示例格式推理。每次 `run()` 重新随机采样，保证每道题示例不同
+- **参数**：`--n_shots N`（示例个数，默认 5）
+- **Harness 覆盖**：Instructions + Environment（2/5）
+- **特点**：通过多样例示范提升推理一致性；示例由 LLM 动态生成，无需人工标注
+
+### 6. RAG + COT
 
 - **原理**：在推理前从知识库检索相关数学知识，注入 Prompt 中辅助推理
 - **参数**：`--top_k K`（检索文档数，默认 3）
@@ -271,8 +291,10 @@ python harness_report.py
 | **self_consistency** | **94.0%** ⭐ | 25.6s | 232.5 | ⭐⭐⭐⭐⭐ **最高准确率中最快** |
 | **prefix_consistency** | **94.0%** ⭐ | 64.4s | 160.9 | ⭐⭐⭐⭐ **Feedback 可靠性 + 低输出 token** |
 | **multi_agent_debate** | **94.0%** ⭐ | 42.4s | 368.6 | ⭐⭐⭐⭐ 多 Agent 互评，成本较高 |
+| **step_verifier (本地 DeBERTa)** | **94.0%** ⭐ | **52.3s** | — | ⭐⭐⭐⭐ **本地验证，零 API 费用** |
 | base_cot | 92.0% | 5.2s | 174.4 | ⭐⭐⭐⭐⭐ **最佳基础性价比** |
-| step_verifier | 92.0% | **206.6s** | 387.9 | ⭐ 极慢，收益有限 |
+| step_verifier (LLM) | 92.0% | **206.6s** | 387.9 | ⭐ 极慢，收益有限 |
+| few_shot_cot | — | — | — | ⭐⭐⭐ 待基准测试 |
 | rag_cot | **78.0%** ▼ | 4.2s | 151.3 | ⭐⭐ 检索噪声损害性能 |
 
 > 详细分析见 [`experiments/report_50_sample_20260611.md`](experiments/report_50_sample_20260611.md)
@@ -298,10 +320,12 @@ python harness_report.py
 ## ⚠️ 已知问题与注意事项
 
 1. **API 限流**：DMXAPI 不支持 `n > 1` 的批量生成，`self_consistency`、`prefix_consistency` 和 `step_verifier` 已改为循环调用 `n=1`
-2. **step_verifier 极慢**：50 样本约需 3 小时，因每步都需额外 API 调用
-3. **prefix_consistency 速度**：50 样本实测约 53.7 分钟（64.4s/题，3 路径 × 3 再生），墙钟时间高于增强版 Self-Consistency，但输出 token 更低
-4. **rag_cot 检索噪声**：当前 keyword-based 检索可能引入无关知识，建议在高质量知识库上使用
-5. **Windows 编码**：如遇到 GBK 解码错误，确保文件使用 UTF-8 编码
+2. **step_verifier LLM 模式极慢**：50 样本约需 3 小时（206.6s/题），建议使用 `--local_verifier` 本地模式（52.3s/题，快 4 倍）
+3. **DeBERTa verifier 分数偏低**：当前分数范围 0.0~2.0（vs 理想 0~10），原因在于训练数据（紧凑数学符号）与 LLM 输出（英文叙述）的风格不匹配。相对排序仍然有效——分数高的路径在风格上更接近训练数据
+4. **prefix_consistency 速度**：50 样本实测约 53.7 分钟（64.4s/题，3 路径 × 3 再生），墙钟时间高于增强版 Self-Consistency，但输出 token 更低
+5. **rag_cot 检索噪声**：当前 keyword-based 检索可能引入无关知识，建议在高质量知识库上使用
+6. **Windows 编码**：如遇到 GBK 解码错误，确保文件使用 UTF-8 编码
+7. **本地模型路径**：`data/checkpoint/` 目录需要存放完整的 DeBERTa checkpoint（`model.safetensors` + `config.json`），tokenizer 自动从 `microsoft/deberta-v3-large` 加载
 
 ---
 
@@ -324,7 +348,7 @@ python harness_report.py
 
 - 接入更多数据集（GSM8K、MATH 等）
 - 优化 RAG 检索器（使用 Embedding-based 语义检索）
-- 改进 Step Verifier（稀疏验证、本地轻量模型）
+- 改进本地 DeBERTa verifier（续训更多 epoch、混入 LLM 风格数据）
 - 尝试更多 CoT 变体（Tree-of-Thought、Program-Aided LLM 等）
 - 探索 Prefix Consistency 的变体（不同截断比例、基于句子的截断、多截断点融合）
 
