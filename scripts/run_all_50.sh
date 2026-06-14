@@ -1,7 +1,8 @@
 #!/bin/bash
-# Run all 6 COT strategies on 50 AQuA samples
-# Usage: bash scripts/run_all_50.sh
-# Note: step_verifier is very slow (~5min/sample, ~4-5h total)
+# Run all 6 COT strategies on AQuA samples
+# Usage: bash scripts/run_all_50.sh [N_SAMPLES]
+#   N_SAMPLES: number of samples to test (default: 100)
+# Note: step_verifier is very slow (~5min/sample, ~4-5h for 50, ~8-10h for 100)
 
 set -e
 
@@ -15,22 +16,23 @@ if [ -z "$API_KEY" ]; then
 fi
 BASE_URL="https://www.dmxapi.cn/v1"
 MODEL="deepseek-v4-flash"
-N_SAMPLES=50
+N_SAMPLES="${1:-100}"
 
 echo "========================================"
-echo "COT 50-Sample Experiment Suite"
+echo "COT Experiment Suite"
 echo "Model: $MODEL | Samples: $N_SAMPLES"
 echo "========================================"
 echo ""
-echo "Estimated time:"
-echo "  base_cot           ~ 30 min"
-echo "  rag_cot            ~ 10 min"
-echo "  self_consistency   ~ 25 min (7 paths with early stopping)"
-echo "  prefix_consistency ~ 55 min (3 paths + 3 regens each)"
-echo "  multi_agent_debate ~ 120 min (3 agents x 2 rounds)"
-echo "  step_verifier      ~ 240-300 min (3 paths + step verification)"
+echo "Estimated time (for 100 samples):"
+echo "  base_cot           ~ 60 min"
+echo "  rag_cot            ~ 20 min"
+echo "  self_consistency   ~ 50 min (7 paths with early stopping)"
+echo "  prefix_consistency ~ 110 min (3 paths + 3 regens each)"
+echo "  multi_agent_debate ~ 240 min (3 agents x 2 rounds)"
+echo "  step_verifier      ~ 480-600 min (3 paths + step verification)"
 echo ""
-echo "Total: ~7-8 hours if run sequentially"
+echo "Total: ~14-18 hours for 100 samples if run sequentially"
+echo "        (~7-8 hours for 50 samples)"
 echo "========================================"
 echo ""
 
