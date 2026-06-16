@@ -1,22 +1,22 @@
 [
   {
-    "content": "Discount formula: Final price = Original price - Discount amount. If the discount is given as a percentage, Discount amount = Original price × (Discount percentage / 100).",
+    "content": "Discount formula: Final price = Original price - Discount amount. If the discount is given as a percentage, Discount amount = Original price * (Discount percentage / 100).",
     "source": "math_basics"
   },
   {
-    "content": "Percentage increase formula: New value = Original value × (1 + Percentage / 100). Percentage decrease formula: New value = Original value × (1 - Percentage / 100).",
+    "content": "Percentage increase formula: New value = Original value * (1 + Percentage / 100). Percentage decrease formula: New value = Original value * (1 - Percentage / 100).",
     "source": "math_basics"
   },
   {
-    "content": "Simple interest formula: Interest = Principal × Rate × Time. Compound interest formula: A = P(1 + r/n)^(nt), where A is the final amount, P is principal, r is annual rate, n is compounding frequency per year, t is time in years.",
+    "content": "Simple interest formula: Interest = Principal * Rate * Time. Compound interest formula: A = P(1 + r/n)^(nt), where A is the final amount, P is principal, r is annual rate, n is compounding frequency per year, t is time in years.",
     "source": "math_basics"
   },
   {
-    "content": "Profit calculation: Profit = Selling price - Cost price. Profit percentage = (Profit / Cost price) × 100%. Loss percentage = (Loss / Cost price) × 100%.",
+    "content": "Profit calculation: Profit = Selling price - Cost price. Profit percentage = (Profit / Cost price) * 100%. Loss percentage = (Loss / Cost price) * 100%.",
     "source": "math_basics"
   },
   {
-    "content": "Speed, distance, and time relationship: Distance = Speed × Time. Speed = Distance / Time. Time = Distance / Speed. Average speed = Total distance / Total time.",
+    "content": "Speed, distance, and time relationship: Distance = Speed * Time. Speed = Distance / Time. Time = Distance / Speed. Average speed = Total distance / Total time.",
     "source": "math_basics"
   },
   {
@@ -28,15 +28,15 @@
     "source": "math_basics"
   },
   {
-    "content": "Mixture problems: When mixing two solutions with concentrations C1 and C2 and quantities Q1 and Q2, the resulting concentration is (C1×Q1 + C2×Q2) / (Q1 + Q2).",
+    "content": "Mixture problems: When mixing two solutions with concentrations C1 and C2 and quantities Q1 and Q2, the resulting concentration is (C1*Q1 + C2*Q2) / (Q1 + Q2).",
     "source": "math_basics"
   },
   {
-    "content": "Area of rectangle = length × width. Area of circle = π × radius². Circumference of circle = 2 × π × radius. Area of triangle = (base × height) / 2.",
+    "content": "Area of rectangle = length * width. Area of circle = π * radius². Circumference of circle = 2 * π * radius. Area of triangle = (base * height) / 2.",
     "source": "geometry"
   },
   {
-    "content": "Probability of an event = Number of favorable outcomes / Total number of possible outcomes. For independent events A and B, P(A and B) = P(A) × P(B).",
+    "content": "Probability of an event = Number of favorable outcomes / Total number of possible outcomes. For independent events A and B, P(A and B) = P(A) * P(B).",
     "source": "probability"
   },
   {
@@ -48,15 +48,15 @@
     "source": "algebra"
   },
   {
-    "content": "Arithmetic sequence: nth term = a + (n-1)d, where a is first term and d is common difference. Sum of n terms = n/2 × (2a + (n-1)d) = n/2 × (first term + last term).",
+    "content": "Arithmetic sequence: nth term = a + (n-1)d, where a is first term and d is common difference. Sum of n terms = n/2 * (2a + (n-1)d) = n/2 * (first term + last term).",
     "source": "algebra"
   },
   {
-    "content": "Geometric sequence: nth term = a × r^(n-1), where a is first term and r is common ratio. Sum of n terms = a(1 - r^n)/(1 - r) when r ≠ 1.",
+    "content": "Geometric sequence: nth term = a * r^(n-1), where a is first term and r is common ratio. Sum of n terms = a(1 - r^n)/(1 - r) when r ≠ 1.",
     "source": "algebra"
   },
   {
-    "content": "Tax calculation: Total cost = Price + Tax amount. Tax amount = Price × Tax rate. If tax is included in the displayed price, Original price = Displayed price / (1 + Tax rate).",
+    "content": "Tax calculation: Total cost = Price + Tax amount. Tax amount = Price * Tax rate. If tax is included in the displayed price, Original price = Displayed price / (1 + Tax rate).",
     "source": "math_basics"
   }
 ]

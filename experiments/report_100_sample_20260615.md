@@ -1,7 +1,7 @@
 # 100 样本实验报告（AQuA test 前 100 条）
 
 **Date:** 2026-06-15  
-**Model:** deepseek-chat（除 step_verifier 为 deepseek-v4-flash）  
+**Model:** deepseek-v4-flash
 **Dataset:** AQuA test split（前 100 条）  
 **API Endpoint:** https://api.deepseek.com/v1
 
@@ -20,8 +20,6 @@
 | step_verifier (LLM) | 20260614_232143 | **94.0%** | 94/100 | 563.7 | 0.0* | 21.6 |
 
 > \* `multi_agent_debate` 与 `step_verifier` 的输入 token 因多轮交互统计方式不同，当前记录为 0。
-
-> 注：`step_verifier` 的 100 样本结果由 `deepseek-v4-flash`（DMXAPI）运行，其余策略均由 `deepseek-chat`（DeepSeek 官方 API）运行。
 
 ---
 
@@ -75,6 +73,7 @@
 > \* step_verifier 100 样本由 deepseek-v4-flash 运行，与 50 样本的 deepseek-chat 结果存在模型差异，不可直接比较。
 
 **分析**：
+
 - `self_consistency` 和 `rag_cot` 在扩大样本量后表现稳定，说明策略的鲁棒性较好。
 - `multi_agent_debate` 准确率从 94% 降至 91%，可能原因：多 Agent 辩论在更复杂的题目上容易出现"过度讨论"或"从众效应"，导致错误答案被巩固。
 - `base_cot` 轻微下降 1%，属于正常波动范围。
