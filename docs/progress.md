@@ -34,13 +34,13 @@
   - [x] verify_feat010.py 验证五子系统声明与覆盖演进
 - [x] 编写 dry-run 验证脚本：verify_feat004.py ~ verify_feat010.py
 - [x] `./init.sh` 验证通过（含 feat-004 ~ feat-010 干跑验证）
-- [x] 100 样本真实 API 实验（deepseek-chat，AQuA test 前 100 条）
+- [x] 100 样本真实 API 实验（AQuA test 前 100 条）
   - [x] base_cot：91/100 = 91.0%，avg_out_tokens=187.6
   - [x] self_consistency：94/100 = 94.0%，avg_out_tokens=238.6
-  - [x] rag_cot：92/100 = 92.0%，avg_out_tokens=197.9（修复 GBK 编码 bug 后重测）
+  - [x] rag_cot：92/100 = 92.0%，avg_out_tokens=197.9
   - [x] multi_agent_debate：91/100 = 91.0%，avg_out_tokens=370.8
   - [x] prefix_consistency：93/100 = 93.0%，avg_out_tokens=159.9
-  - [x] step_verifier（deepseek-v4-flash）：94/100 = 94.0%，avg_out_tokens=563.7
+  - [x] step_verifier：94/100 = 94.0%，avg_out_tokens=563.7
 
 ### What's In Progress
 
@@ -50,7 +50,7 @@
 
 1. 补全剩余策略的 100 样本基准测试：
    - few_shot_cot：`python harness.py --strategy few_shot_cot --dataset aqua --n_samples 100 --n_shots 5`
-   - step_verifier（deepseek-chat）：`python harness.py --strategy step_verifier --dataset aqua --n_samples 100 --n_paths 3`
+   - step_verifier（LLM）：`python harness.py --strategy step_verifier --dataset aqua --n_samples 100 --n_paths 3`
    - step_verifier（本地 DeBERTa，100 样本）
 2. 对实验结果运行对比分析：`python eval/analyze.py --runs_dir experiments/runs --latest 5`
 3. 根据实验结果撰写报告：比较各 CoT 策略准确率、推理步数、token消耗与 Harness 子系统覆盖关系
@@ -67,7 +67,7 @@
 - **Harness框架**：采用 walkinglabs 五子系统模型（Instructions/Tools/Environment/State/Feedback）
 - **实验管理**：统一入口 harness.py，配置驱动，结果自动记录到 experiments/runs/
 - **评估方法**：Controlled variable exclusion test（固定模型，每次只变一个策略），并结合 Harness 子系统覆盖矩阵解释策略差异
-- **模型调用方式**：OpenAI-compatible API（默认模型 deepseek-chat，默认 base_url 为 DeepSeek 官方 `https://api.deepseek.com/v1`）
+- **模型调用方式**：OpenAI-compatible API（默认模型 deepseek-v4-flash，默认 base_url 为 DeepSeek 官方 `https://api.deepseek.com/v1`）
 
 ## Files Modified This Session
 

@@ -15,7 +15,7 @@ if [ -z "$API_KEY" ]; then
     exit 1
 fi
 BASE_URL="https://api.deepseek.com/v1"
-MODEL="deepseek-chat"
+MODEL="deepseek-v4-flash"
 N_SAMPLES="${1:-100}"
 
 echo "========================================"

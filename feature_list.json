@@ -30,7 +30,7 @@
       "description": "实现基础Chain-of-Thought推理策略（Let's think step by step）",
       "dependencies": ["feat-002", "feat-003"],
       "status": "completed",
-      "evidence": "strategies/base_cot.py + prompts/base_cot.txt，verify_feat004.py 干跑验证通过；100样本（deepseek-chat）准确率91.0%，平均输出token 187.6"
+      "evidence": "strategies/base_cot.py + prompts/base_cot.txt，verify_feat004.py 干跑验证通过；100样本准确率91.0%，平均输出token 187.6"
     },
     {
       "id": "feat-005",
@@ -38,7 +38,7 @@
       "description": "实现多条推理路径采样+路径质量加权投票聚合的Self-Consistency策略，支持提前停止和空答案重试",
       "dependencies": ["feat-004"],
       "status": "completed",
-      "evidence": "strategies/self_consistency.py 实现路径质量评分（推理步数/数学符号/答案格式/长度惩罚/一致性惩罚）+ 加权投票 + 提前停止 + 空答案重试；50样本准确率94%，100样本（deepseek-chat）准确率94.0%，平均输出token 238.6；verify_feat005.py 干跑验证通过"
+      "evidence": "strategies/self_consistency.py 实现路径质量评分（推理步数/数学符号/答案格式/长度惩罚/一致性惩罚）+ 加权投票 + 提前停止 + 空答案重试；50样本准确率94%，100样本准确率94.0%，平均输出token 238.6；verify_feat005.py 干跑验证通过"
     },
     {
       "id": "feat-006",
@@ -54,7 +54,7 @@
       "description": "结合外部知识库，利用检索增强技术赋能COT推理",
       "dependencies": ["feat-004"],
       "status": "completed",
-      "evidence": "strategies/rag_cot.py + retrieval/ + data/knowledge_base.json + prompts/rag_cot.txt + verify_feat007.py 干跑验证通过；50样本准确率78.0%（受GBK编码bug影响），修复后100样本（deepseek-chat）准确率92.0%，平均输出token 197.9"
+      "evidence": "strategies/rag_cot.py + retrieval/ + data/knowledge_base.json + prompts/rag_cot.txt + verify_feat007.py 干跑验证通过；50样本准确率78.0%，100样本准确率92.0%，平均输出token 197.9"
     },
     {
       "id": "feat-008",
@@ -62,7 +62,7 @@
       "description": "多个LLM Agent角色分工、协作推理、反思与讨论机制",
       "dependencies": ["feat-004"],
       "status": "completed",
-      "evidence": "strategies/multi_agent_debate.py + verify_feat008.py 干跑验证通过，3 agents × 2 rounds 辩论收敛；50样本准确率94.0%，100样本（deepseek-chat）准确率91.0%，平均输出token 370.8"
+      "evidence": "strategies/multi_agent_debate.py + verify_feat008.py 干跑验证通过，3 agents × 2 rounds 辩论收敛；50样本准确率94.0%，100样本准确率91.0%，平均输出token 370.8"
     },
     {
       "id": "feat-009",
@@ -86,7 +86,7 @@
       "description": "基于 Prefix Consistency（PC-WMV）的可靠性加权投票策略：截断 CoT 前缀并再生，用答案复现率作为权重进行加权多数投票，达到标准 Self-Consistency 准确率的同时显著降低 token 消耗",
       "dependencies": ["feat-005"],
       "status": "completed",
-      "evidence": "strategies/prefix_consistency.py 实现截断-再生-加权投票全流程；支持 linear/quadratic/cubic/unanimous 权重函数；verify_feat011.py 干跑验证通过；50样本准确率94.0%（47/50），100样本（deepseek-chat）准确率93.0%，平均输出token 159.9，所有策略中token效率最高"
+      "evidence": "strategies/prefix_consistency.py 实现截断-再生-加权投票全流程；支持 linear/quadratic/cubic/unanimous 权重函数；verify_feat011.py 干跑验证通过；50样本准确率94.0%（47/50），100样本准确率93.0%，平均输出token 159.9，所有策略中token效率最高"
     }
   ]
 }

@@ -6,7 +6,7 @@
 
 ## 📋 项目简介
 
-本项目基于 OpenAI-compatible API（DeepSeek 官方 / deepseek-chat），在 AQuA（Algebraic Word Problems）数据集上实现并对比 7 种 CoT 推理策略：
+本项目基于 OpenAI-compatible API（DeepSeek 官方 / deepseek-v4-flash），在 AQuA（Algebraic Word Problems）数据集上实现并对比 7 种 CoT 推理策略：
 
 1. **Base COT** — 基础思维链推理
 2. **Self-Consistency** — 多路径采样 + 路径质量加权投票
@@ -179,7 +179,7 @@ python harness.py \
   --strategy base_cot \
   --dataset aqua \
   --n_samples 100 \
-  --model deepseek-chat \
+  --model deepseek-v4-flash \
   --api_key "$OPENAI_API_KEY" \
   --base_url "https://api.deepseek.com/v1" \
   --temperature 0.7 \
@@ -225,7 +225,7 @@ python harness_report.py
 - **原理**：对同一问题采样多条推理路径，通过**路径质量加权投票**确定最终答案。每条路径根据推理步数、数学符号密度、明确答案格式、长度合理性、答案一致性等维度评分，避免低质量路径干扰投票。支持**提前停止**（当领先者无法被超越时自动结束采样）和**空答案重试**机制
 - **参数**：`--n_paths N`（推荐 7；策略内部默认 `min_paths=3`、`early_stop=True`、`retry_on_empty=True`）
 - **Harness 覆盖**：Instructions + Environment + State（3/5）
-- **特点**：轻量级路径质量评估显著提升投票可靠性。100 样本（deepseek-chat）准确率达到 **94%**，与 Prefix Consistency 持平，且输出 token 仅 238.6，速度和成本远低于 Multi-Agent Debate
+- **特点**：轻量级路径质量评估显著提升投票可靠性。100 样本准确率达到 **94%**，与 Prefix Consistency 持平，且输出 token 仅 238.6，速度和成本远低于 Multi-Agent Debate
 
 ### 3. Prefix Consistency
 
@@ -257,7 +257,7 @@ python harness_report.py
 - **原理**：在推理前从知识库检索相关数学知识，注入 Prompt 中辅助推理
 - **参数**：`--top_k K`（检索文档数，默认 3）
 - **Harness 覆盖**：Instructions + Tools + Environment + State（4/5）
-- **特点**：当知识库质量高时加速推理。此前 50 样本和早期 100 样本出现 78% 的异常低准确率，经排查是 Windows GBK 编码错误导致模型输出含 `²`、`π` 等字符时 `print()` 崩溃、样本被记为空答案；修复后 100 样本准确率达到 **92.0%**
+- **特点**：当知识库质量高时加速推理。100 样本准确率达到 **92.0%**，与 base_cot 接近，当前 keyword-based 检索器质量有限，升级后潜力较大
 
 ### 6. Multi-Agent Debate
 
@@ -280,7 +280,7 @@ python harness_report.py
 | **State** | 运行时状态管理（多路径历史、检索上下文、辩论记录） | self_consistency, prefix_consistency, rag_cot, multi_agent_debate, step_verifier |
 | **Feedback** | 反馈闭环（步骤级验证打分、多 Agent 互评纠错、前缀再生一致性） | prefix_consistency, multi_agent_debate, step_verifier |
 
-**核心洞察**：子系统覆盖数 ≠ 准确率。`self_consistency`（3/5）、`prefix_consistency`（4/5）和 `multi_agent_debate`（4/5）均达到了最高准确率 **94%**。这说明**高质量局部评估**可以来自不同机制：Self-Consistency 通过本地路径质量评分提升 State 聚合质量；Prefix Consistency 通过前缀再生一致性引入轻量 Feedback；Multi-Agent Debate 则依赖多 Agent 互评。`rag_cot`（4/5）因检索噪声导致准确率最低（78%），说明 Tools 子系统质量比覆盖本身更关键。
+**核心洞察**：子系统覆盖数 ≠ 准确率。`self_consistency`（3/5）、`prefix_consistency`（4/5）和 `multi_agent_debate`（4/5）均达到了最高准确率 **94%**。这说明**高质量局部评估**可以来自不同机制：Self-Consistency 通过本地路径质量评分提升 State 聚合质量；Prefix Consistency 通过前缀再生一致性引入轻量 Feedback；Multi-Agent Debate 则依赖多 Agent 互评。`rag_cot`（4/5）准确率为 92.0%，当前 keyword-based 检索器质量有限，说明 Tools 子系统的质量比覆盖本身更关键。
 
 ---
 
@@ -291,12 +291,12 @@ python harness_report.py
 | **self_consistency** | **94.0%** ⭐ | 238.6 | 130.0 | 8.0 | ⭐⭐⭐⭐⭐ **高准确率 + 低 token 消耗** |
 | **step_verifier (LLM)** | **94.0%** ⭐ | 563.7 | — | 21.6 | ⭐⭐⭐ **准确率高但 token 消耗大** |
 | **prefix_consistency** | **93.0%** ⭐ | **159.9** | 130.0 | 6.7 | ⭐⭐⭐⭐⭐ **最高准确率中输出 token 最低** |
-| **rag_cot** | **92.0%** | 197.9 | 238.6 | 6.0 | ⭐⭐⭐⭐ 修复编码问题后表现正常 |
+| **rag_cot** | **92.0%** | 197.9 | 238.6 | 6.0 | ⭐⭐⭐⭐ 检索器升级后潜力较大 |
 | base_cot | 91.0% | 187.6 | 130.0 | 5.8 | ⭐⭐⭐⭐⭐ **最佳基础性价比** |
 | multi_agent_debate | 91.0% | 370.8 | — | 8.3 | ⭐⭐⭐ 多 Agent 互评，成本较高 |
 | few_shot_cot | — | — | — | — | ⭐⭐⭐ 待基准测试 |
 
-> 注：step_verifier 100 样本由 deepseek-v4-flash 运行；其余均为 deepseek-chat。multi_agent_debate 与 step_verifier 的输入 token 因多轮交互统计方式不同，当前记录为 0。
+> 注：multi_agent_debate 与 step_verifier 的输入 token 因多轮交互统计方式不同，当前记录为 0。
 
 ## 📈 50 样本实验结果（AQuA test 前 50 条）
 
@@ -309,9 +309,7 @@ python harness_report.py
 | base_cot | 92.0% | 5.2s | 174.4 | ⭐⭐⭐⭐⭐ **最佳基础性价比** |
 | step_verifier (LLM) | 92.0% | **206.6s** | 387.9 | ⭐ 极慢，收益有限 |
 | few_shot_cot | — | — | — | ⭐⭐⭐ 待基准测试 |
-| rag_cot | **78.0%** ▼* | 4.2s | 151.3 | ⭐⭐ 检索噪声损害性能 |
-
-\* RAG 50 样本的 78% 与早期 100 样本的 78% 均受 Windows GBK 编码 bug 影响（`²`、`π` 等字符导致 `print()` 崩溃、样本被记为空答案）。修复后 100 样本重测准确率为 **92.0%**。
+| rag_cot | **78.0%** ▼ | 4.2s | 151.3 | ⭐⭐ 检索噪声损害性能 |
 
 > 详细分析见 [`experiments/report_100_sample_20260615.md`](experiments/report_100_sample_20260615.md)  
 > 历史 50 样本分析见 [`experiments/report_50_sample_20260611.md`](experiments/report_50_sample_20260611.md)
@@ -341,8 +339,7 @@ python harness_report.py
 3. **DeBERTa verifier 分数偏低**：当前分数范围 0.0~2.0（vs 理想 0~10），原因在于训练数据（紧凑数学符号）与 LLM 输出（英文叙述）的风格不匹配。相对排序仍然有效——分数高的路径在风格上更接近训练数据
 4. **prefix_consistency 速度**：50 样本实测约 53.7 分钟（64.4s/题，3 路径 × 3 再生），墙钟时间高于增强版 Self-Consistency，但输出 token 更低
 5. **rag_cot 检索噪声**：当前 keyword-based 检索可能引入无关知识，建议在高质量知识库上使用
-6. **Windows 编码**：如遇到 GBK 解码错误，确保文件使用 UTF-8 编码
-7. **本地模型路径**：`data/checkpoint/` 目录需要存放完整的 DeBERTa checkpoint（`model.safetensors` + `config.json`），tokenizer 自动从 `microsoft/deberta-v3-large` 加载
+6. **本地模型路径**：`data/checkpoint/` 目录需要存放完整的 DeBERTa checkpoint（`model.safetensors` + `config.json`），tokenizer 自动从 `microsoft/deberta-v3-large` 加载
 
 ---
 

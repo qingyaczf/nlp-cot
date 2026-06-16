@@ -37,9 +37,9 @@ from strategies import (
 from tasks import AQuATask
 
 # ---------------------------------------------------------------------------
-# Global stdout/stderr encoding fix for Windows GBK terminals.
-# Must run before any print() or tqdm.write() to prevent UnicodeEncodeError
-# from corrupting experiment samples when model outputs chars like ², π, etc.
+# Global stdout/stderr encoding fix for Windows terminals that default to
+# non-UTF-8 code pages. Must run before any print() or tqdm.write() to
+# prevent UnicodeEncodeError from corrupting experiment samples.
 # ---------------------------------------------------------------------------
 if sys.platform == "win32":
     try:
@@ -97,7 +97,7 @@ def _safe_write(msg: str):
     try:
         tqdm.write(msg)
     except UnicodeEncodeError:
-        # Fallback: encode with replacement for GBK terminals
+        # Fallback: encode with replacement for non-UTF-8 terminals
         tqdm.write(msg.encode(sys.stdout.encoding or "utf-8", errors="replace").decode(sys.stdout.encoding or "utf-8"))
 
 
@@ -227,7 +227,7 @@ def main():
     parser = argparse.ArgumentParser(description="COT Experiment Harness")
     parser.add_argument("--strategy", type=str, default="base_cot", help="Strategy name")
     parser.add_argument("--dataset", type=str, default="aqua", help="Dataset/task name")
-    parser.add_argument("--model", type=str, default="deepseek-chat", help="Model name")
+    parser.add_argument("--model", type=str, default="deepseek-v4-flash", help="Model name")
     parser.add_argument("--split", type=str, default="test", help="Dataset split")
     parser.add_argument("--n_samples", type=int, default=None, help="Number of samples to run")
     parser.add_argument("--temperature", type=float, default=0.7, help="Sampling temperature")

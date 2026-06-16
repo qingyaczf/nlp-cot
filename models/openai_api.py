@@ -19,7 +19,7 @@ class OpenAIModel(BaseModel):
 
     def __init__(
         self,
-        model_name: str = "deepseek-chat",
+        model_name: str = "deepseek-v4-flash",
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
         **kwargs

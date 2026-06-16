@@ -25,7 +25,7 @@ from datetime import datetime
 # 从环境变量读取 API Key；推送代码前请勿硬编码密钥
 API_KEY = os.environ.get("OPENAI_API_KEY", "")
 BASE_URL = "https://api.deepseek.com/v1"
-MODEL = "deepseek-chat"
+MODEL = "deepseek-v4-flash"
 N_SAMPLES = 100
 OUTPUT_DIR = "experiments/runs"
 
