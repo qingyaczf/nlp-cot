@@ -143,8 +143,8 @@ python harness.py --strategy self_consistency --dataset aqua --n_paths 7
 # Prefix Consistency（3 条路径 + 截断 50% 再生 3 次 + 加权投票）
 python harness.py --strategy prefix_consistency --dataset aqua --n_paths 3 --truncation_ratio 0.5 --regen_count 3
 
-# Multi-Agent Debate（3 个 Agent × 2 轮辩论）
-python harness.py --strategy multi_agent_debate --dataset aqua --n_agents 3 --n_rounds 2
+# Multi-Agent Debate（5 个 Agent × 3 轮辩论 + 交叉评审 + 收敛检测）
+python harness.py --strategy multi_agent_debate --dataset aqua --n_agents 5 --n_rounds 3
 
 # Step-Aware Verifier + 本地 DeBERTa（3 prompts × 5 路径）
 python harness.py --strategy step_verifier --dataset aqua --n_prompts 3 --n_paths 5 --local_verifier
@@ -259,12 +259,12 @@ python harness_report.py
 - **Harness 覆盖**：Instructions + Tools + Environment + State（4/5）
 - **特点**：当知识库质量高时加速推理。100 样本准确率达到 **92.0%**，与 base_cot 接近，当前 keyword-based 检索器质量有限，升级后潜力较大
 
-### 6. Multi-Agent Debate
+### 7. Multi-Agent Debate
 
-- **原理**：多个 LLM Agent 分别扮演不同角色（严谨分析者 / 创意解题者 / 怀疑批评者），进行多轮讨论与互评，最终投票决定答案
-- **参数**：`--n_agents N`（Agent 数，默认 3），`--n_rounds R`（辩论轮数，默认 2）
+- **原理**：5 个 LLM Agent 分别扮演不同角色（分析师 / 批判者 / 直觉者 / 验证者 / 综合者），通过 **ThreadPoolExecutor 并行执行**、**交叉评审**（每轮各 Agent 审阅其他 Agent 的答案并指出漏洞）、**收敛检测**（若所有 Agent 答案一致则提前停止）和 **多数投票** 决定最终答案
+- **参数**：`--n_agents N`（Agent 数，默认 5），`--n_rounds R`（辩论轮数，默认 3）
 - **Harness 覆盖**：Instructions + Environment + State + Feedback（4/5）
-- **特点**：能通过多视角互评纠正单模型盲区，但 Token 消耗最大。100 样本准确率 91.0%，低于 50 样本时的 94.0%，大样本下稳定性有所下降
+- **特点**：多角色并行协作显著提升了推理稳定性。100 样本准确率达到 **95.0%**，为所有策略中最高；50 样本准确率 **94.0%**。但因 5 Agent × 多轮调用，实际 API 调用量约为 15 次/题，成本较高
 
 ---
 
@@ -280,7 +280,7 @@ python harness_report.py
 | **State** | 运行时状态管理（多路径历史、检索上下文、辩论记录） | self_consistency, prefix_consistency, rag_cot, multi_agent_debate, step_verifier |
 | **Feedback** | 反馈闭环（步骤级验证打分、多 Agent 互评纠错、前缀再生一致性） | prefix_consistency, multi_agent_debate, step_verifier |
 
-**核心洞察**：子系统覆盖数 ≠ 准确率。`self_consistency`（3/5）、`prefix_consistency`（4/5）和 `multi_agent_debate`（4/5）均达到了最高准确率 **94%**。这说明**高质量局部评估**可以来自不同机制：Self-Consistency 通过本地路径质量评分提升 State 聚合质量；Prefix Consistency 通过前缀再生一致性引入轻量 Feedback；Multi-Agent Debate 则依赖多 Agent 互评。`rag_cot`（4/5）准确率为 92.0%，当前 keyword-based 检索器质量有限，说明 Tools 子系统的质量比覆盖本身更关键。
+**核心洞察**：子系统覆盖数 ≠ 准确率，但**高质量的 Feedback 机制**能显著提升性能。升级后的 `multi_agent_debate`（4/5）通过 5 Agent 并行 + 交叉评审 + 收敛检测，在 100 样本上达到 **95.0%**，为所有策略最高；`self_consistency`（3/5）和 `step_verifier`（5/5）均达到 **94.0%**。这说明**高质量局部评估**可以来自不同机制：Self-Consistency 通过本地路径质量评分提升 State 聚合质量；Prefix Consistency 通过前缀再生一致性引入轻量 Feedback；Multi-Agent Debate 则通过多角色互评和收敛检测实现最强推理稳定性。`rag_cot`（4/5）准确率为 92.0%，当前 keyword-based 检索器质量有限，说明 Tools 子系统的质量比覆盖本身更关键。
 
 ---
 
@@ -288,13 +288,15 @@ python harness_report.py
 
 | 策略 | 准确率 | 平均输出 Token | 平均输入 Token | 平均推理步数 | 综合性价比 |
 |---|---|---|---|---|---|
+| **multi_agent_debate** | **95.0%** ⭐ | 72.2* | — | 2.0 | ⭐⭐⭐⭐ **最高准确率，多 Agent 协作** |
 | **self_consistency** | **94.0%** ⭐ | 238.6 | 130.0 | 8.0 | ⭐⭐⭐⭐⭐ **高准确率 + 低 token 消耗** |
 | **step_verifier (LLM)** | **94.0%** ⭐ | 563.7 | — | 21.6 | ⭐⭐⭐ **准确率高但 token 消耗大** |
 | **prefix_consistency** | **93.0%** ⭐ | **159.9** | 130.0 | 6.7 | ⭐⭐⭐⭐⭐ **最高准确率中输出 token 最低** |
 | **rag_cot** | **92.0%** | 197.9 | 238.6 | 6.0 | ⭐⭐⭐⭐ 检索器升级后潜力较大 |
 | base_cot | 91.0% | 187.6 | 130.0 | 5.8 | ⭐⭐⭐⭐⭐ **最佳基础性价比** |
-| multi_agent_debate | 91.0% | 370.8 | — | 8.3 | ⭐⭐⭐ 多 Agent 互评，成本较高 |
 | few_shot_cot | — | — | — | — | ⭐⭐⭐ 待基准测试 |
+
+> *注：multi_agent_debate 的 output 字段仅记录投票摘要（非完整 Agent 输出），实际 API 调用约 5 agents × 最多 3 rounds = 15 次/题。
 
 > 注：multi_agent_debate 与 step_verifier 的输入 token 因多轮交互统计方式不同，当前记录为 0。
 
@@ -302,14 +304,16 @@ python harness_report.py
 
 | 策略 | 准确率 | 平均耗时/条 | 平均 Token | 综合性价比 |
 |---|---|---|---|---|
+| **multi_agent_debate** | **94.0%** ⭐ | 18.9s | 70.4* | ⭐⭐⭐⭐ **多 Agent 并行，最高准确率之一** |
 | **self_consistency** | **94.0%** ⭐ | 25.6s | 232.5 | ⭐⭐⭐⭐⭐ **最高准确率中最快** |
 | **prefix_consistency** | **94.0%** ⭐ | 64.4s | 160.9 | ⭐⭐⭐⭐ **Feedback 可靠性 + 低输出 token** |
-| **multi_agent_debate** | **94.0%** ⭐ | 42.4s | 368.6 | ⭐⭐⭐⭐ 多 Agent 互评，成本较高 |
 | **step_verifier (本地 DeBERTa)** | **94.0%** ⭐ | **52.3s** | — | ⭐⭐⭐⭐ **本地验证，零 API 费用** |
 | base_cot | 92.0% | 5.2s | 174.4 | ⭐⭐⭐⭐⭐ **最佳基础性价比** |
 | step_verifier (LLM) | 92.0% | **206.6s** | 387.9 | ⭐ 极慢，收益有限 |
 | few_shot_cot | — | — | — | ⭐⭐⭐ 待基准测试 |
 | rag_cot | **78.0%** ▼ | 4.2s | 151.3 | ⭐⭐ 检索噪声损害性能 |
+
+> *注：multi_agent_debate 的 output 字段仅记录投票摘要，实际 API 调用约 5 agents × 最多 3 rounds = 15 次/题。
 
 > 详细分析见 [`experiments/report_100_sample_20260615.md`](experiments/report_100_sample_20260615.md)  
 > 历史 50 样本分析见 [`experiments/report_50_sample_20260611.md`](experiments/report_50_sample_20260611.md)

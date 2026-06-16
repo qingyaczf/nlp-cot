@@ -38,7 +38,7 @@
   - [x] base_cot：91/100 = 91.0%，avg_out_tokens=187.6
   - [x] self_consistency：94/100 = 94.0%，avg_out_tokens=238.6
   - [x] rag_cot：92/100 = 92.0%，avg_out_tokens=197.9
-  - [x] multi_agent_debate：91/100 = 91.0%，avg_out_tokens=370.8
+  - [x] multi_agent_debate：95/100 = 95.0%，avg_out_tokens=72.2（5 Agent并行+交叉评审+收敛检测，output仅记录投票摘要）
   - [x] prefix_consistency：93/100 = 93.0%，avg_out_tokens=159.9
   - [x] step_verifier：94/100 = 94.0%，avg_out_tokens=563.7
 

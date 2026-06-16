@@ -62,7 +62,7 @@
       "description": "多个LLM Agent角色分工、协作推理、反思与讨论机制",
       "dependencies": ["feat-004"],
       "status": "completed",
-      "evidence": "strategies/multi_agent_debate.py + verify_feat008.py 干跑验证通过，3 agents × 2 rounds 辩论收敛；50样本准确率94.0%，100样本准确率91.0%，平均输出token 370.8"
+      "evidence": "strategies/multi_agent_debate.py 升级实现：5 agents（分析师/批判者/直觉者/验证者/综合者）并行执行 + 交叉评审 + 收敛检测 + 多数投票；verify_feat008.py 干跑验证通过；50样本准确率94.0%（47/50），100样本准确率95.0%（95/100），为所有策略中100样本最高"
     },
     {
       "id": "feat-009",
