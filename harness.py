@@ -36,6 +36,27 @@ from strategies import (
 )
 from tasks import AQuATask
 
+# ---------------------------------------------------------------------------
+# Global stdout/stderr encoding fix for Windows GBK terminals.
+# Must run before any print() or tqdm.write() to prevent UnicodeEncodeError
+# from corrupting experiment samples when model outputs chars like ², π, etc.
+# ---------------------------------------------------------------------------
+if sys.platform == "win32":
+    try:
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+        else:
+            import io
+            sys.stdout = io.TextIOWrapper(
+                sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+            )
+            sys.stderr = io.TextIOWrapper(
+                sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+            )
+    except Exception:
+        pass  # If even this fails, fall through to _safe_write below
+
 
 def load_strategy(strategy_name: str, model, task, **kwargs):
     """Load a strategy by name. Handles special dependencies like retriever."""
