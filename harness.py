@@ -251,7 +251,7 @@ def main():
     parser.add_argument("--top_k", type=int, default=3, help="Number of retrieved docs (for rag_cot)")
     parser.add_argument("--n_shots", type=int, default=5, help="Number of few-shot examples (for few_shot_cot)")
     parser.add_argument("--local_verifier", action="store_true", help="Use local DeBERTa verifier instead of LLM verifier")
-    parser.add_argument("--verifier_model_path", type=str, default="data/checkpoint", help="Path to the local verifier model checkpoint")
+    parser.add_argument("--verifier_model_path", type=str, default="k1r1same/aqua-verifier", help="HuggingFace model name or local path to the verifier model")
 
     args = parser.parse_args()
 

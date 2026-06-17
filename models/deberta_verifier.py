@@ -19,10 +19,15 @@ Usage:
     # or holistic:
     score = verifier.score_full_path(question, full_solution_text)
 """
+import os
 import re
 from typing import Optional
 
 import torch
+
+# ── Use HF mirror for users in China ──
+if "HF_ENDPOINT" not in os.environ:
+    os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 
 # ── Import the custom model from models/ ──
 from models.deberta_model import DebertaV2ForTokenClassification
@@ -39,7 +44,7 @@ class DebertaStepVerifier:
 
     def __init__(
         self,
-        model_path: str = "data/checkpoint",
+        model_path: str = "k1r1same/aqua-verifier",
         tokenizer_name: Optional[str] = None,
         device: Optional[str] = None,
         max_length: int = 512,

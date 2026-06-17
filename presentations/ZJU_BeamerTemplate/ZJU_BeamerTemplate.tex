@@ -212,31 +212,85 @@ final = _aggregate_votes(predictions, weights)
 
 \section{Step-Aware Verifier}
 
-\begin{frame}{Step-Aware Verifier：从“看最终答案”到“看每一步”}
+\begin{frame}{LLM Verifier（原版）：每一步都要调一次 API}
   \framesubtitle{Making Large Language Models Better Reasoners with Step-Aware Verifier}
   \begin{columns}[T,onlytextwidth]
-    \begin{column}{0.49\textwidth}
-      \begin{block}{论文思想}
+    \begin{column}{0.52\textwidth}
+      \begin{block}{论文思路}
         \begin{itemize}
           \tightitems
-          \item 把推理过程拆成 step。
-          \item 对每一步进行正确性或可信度评估。
-          \item 用 verifier 选择更可靠的推理路径。
+          \item 生成多条推理路径。
+          \item 每条路径拆成 step，每一步调用 LLM 打分（Score: 1-10）。
+          \item 选平均分最高的路径作为最终答案。
         \end{itemize}
+      \end{block}
+      \begin{block}{实现代码}
+        \small \texttt{strategies/step\_verifier.py} 中 \texttt{\_verify\_step()} 对每个 step
+        构造 \texttt{prompts/step\_verifier.txt} 模板，调用 \texttt{model.generate()} 打分。
       \end{block}
     \end{column}
-    \begin{column}{0.47\textwidth}
-      \begin{block}{项目实现}
+    \begin{column}{0.44\textwidth}
+      \begin{alertblock}{性能代价}
         \begin{itemize}
           \tightitems
-          \item 策略入口：\texttt{strategies/step\_verifier.py}。
-          \item verifier 模型封装：\texttt{models/deberta\_verifier.py}。
-          \item 结果保存 step 级评分，用于选择最终答案。
+          \item 每条路径每步 = 1 次 API 调用。
+          \item 10 step $\times$ 5 路径 = 50 次 API / 题。
+          \item 50 样本实测: \textbf{206.6s/条}，极慢。
         \end{itemize}
-      \end{block}
-      \begin{alertblock}{实验观察}
-        AQuA 前 100 条达到 94\%，但平均输出 token 与耗时明显高于 base/self-consistency。
       \end{alertblock}
+      \begin{block}{聚合}
+        对每条路径求 step 分数均值，取最高值：
+        \[
+          \hat{a} = \arg\max_{i} \frac{1}{|y_i|} \sum_{s \in y_i} V(s)
+        \]
+      \end{block}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{本地 DeBERTa Verifier：纯 CUDA 推理，零额外 API}
+  \framesubtitle{自定义微调 DeBERTa-v3-large 替代 LLM 验证}
+  \begin{columns}[T,onlytextwidth]
+    \begin{column}{0.52\textwidth}
+      \begin{block}{模型架构与评分}
+        \small
+        \begin{itemize}
+          \tightitems
+          \item Token 分类训练，推理时\textbf{当序列分类用}——只看 [CLS] 的 \texttt{SOLUTION-CORRECT} 概率。
+          \item STEP 标签仅辅助训练（loss 0.1），推理不用。
+        \end{itemize}
+        \vspace{0.2em}
+        \texttt{score = softmax(logits[0,0])[SOLUTION-CORRECT] $\times$ 10}
+      \end{block}
+      \begin{block}{多 Prompt + 加权投票}
+        \small
+        \texttt{--n\_prompts}：每道题用多个不同 random few-shot prompt，每个采 \texttt{--n\_paths} 条路径。
+        \[
+          \hat{a} = \arg\max_{a} \sum_{i=1}^{N} V(y_i) \cdot \mathbb{1}[a_i = a]
+        \]
+      \end{block}
+    \end{column}
+    \begin{column}{0.44\textwidth}
+      \begin{block}{关键文件}
+        \footnotesize
+        \begin{tabularx}{\linewidth}{lY}
+          \midrule
+          \texttt{step\_verifier.py} & 策略主逻辑 \\
+          \texttt{deberta\_verifier.py} & verifier 包装 \\
+          \texttt{deberta\_model.py} & 自定义模型类 \\
+          \bottomrule
+        \end{tabularx}
+      \end{block}
+      \begin{alertblock}{性能}
+        \textbf{验证纯 CUDA，零 API 调用。}\\
+        50 样本: \textbf{52.3s/条}（LLM 版 $\frac{1}{4}$）。
+      \end{alertblock}
+      \begin{block}{模型分发（HuggingFace）}
+        \footnotesize
+        \centering
+        \texttt{huggingface.co/k1r1same/aqua-verifier}\\
+        （国内自动镜像 hf-mirror）
+      \end{block}
     \end{column}
   \end{columns}
 \end{frame}
@@ -375,7 +429,7 @@ final = _aggregate_votes(predictions, weights)
         \foreach \name/\acc/\y/\col in {
           Debate/95/0/Good,
           Self-Consistency/94/1/Accent,
-          Step Verifier/94/2/Accent,
+          Step Ver. (DeBERTa)/94/2/Accent,
           Prefix Consistency/93/3/Warn,
           RAG + CoT/92/4/Warn,
           Base CoT/91/5/Muted}
@@ -409,7 +463,8 @@ final = _aggregate_votes(predictions, weights)
     \midrule
     Base CoT & 100 & 91 & 91\% & 187.64 & 单路径，成本最低。 \\
     Self-Consistency & 100 & 94 & 94\% & 238.56 & 多路径采样，准确率稳定提升。 \\
-    Step Verifier & 100 & 94 & 94\% & 563.74 & step 级评估更细，但输出成本最高。 \\
+    Step Verifier (LLM) & 100 & 94 & 94\% & 563.74 & step 级评估更细，但输出成本最高。 \\
+    Step Verifier (DeBERTa) & 100 & 94 & 94\% & — & 验证阶段本地 CUDA，零 API 调用。 \\
     RAG + CoT & 100 & 92 & 92\% & 197.90 & 输入 token 增加，受检索质量影响。 \\
     Multi-Agent Debate & 100 & 95 & 95\% & 72.18 & 结果文件只保存摘要，实际调用成本更高。 \\
     \bottomrule
@@ -427,7 +482,8 @@ final = _aggregate_votes(predictions, weights)
         \midrule
         Multi-Agent Debate & 94\% & 95\% \\
         Self-Consistency & 94\% & 94\% \\
-        Step Verifier & 92\% & 94\% \\
+        Step Verifier (LLM) & 92\% & 94\% \\
+        Step Verifier (DeBERTa) & 94\% & 94\% \\
         Prefix Consistency & 94\% & 93\% \\
         RAG + CoT & 78\% & 92\% \\
         Base CoT & 92\% & 91\% \\
@@ -457,7 +513,8 @@ final = _aggregate_votes(predictions, weights)
     方法 & 主要解决的问题 & 优势 & 局限 \\
     \midrule
     Self-Consistency & 单路径随机错误 & 简单、低风险、可直接替换策略文件 & 多次采样增加调用成本 \\
-    Step Verifier & 中间步骤错误 & 可解释性强，能定位 step 级问题 & verifier 依赖与耗时较高 \\
+    Step Verifier (LLM) & 中间步骤错误 & 可解释性强，能定位 step 级问题 & 耗时极高 \\
+    Step Verifier (DeBERTa) & 路径质量评分 & 验证阶段本地推理，零 API & 训练数据风格不匹配 \\
     RAG + CoT & 外部知识不足 & 对知识密集题更有潜力 & 数学题收益受检索质量限制 \\
     Debate & 单模型视角偏差 & 多角色互相纠错，准确率最高 & 调度复杂、成本最高 \\
     Harness & 实验不可复现 & 统一接口、结果留痕、便于协作 & 需要规范每个策略的输入输出 \\
@@ -500,6 +557,7 @@ final = _aggregate_votes(predictions, weights)
       \texttt{harness.py} & 统一实验入口与结果保存。 \\
       \texttt{strategies/self\_consistency.py} & 自适应加权 self-consistency。 \\
       \texttt{strategies/step\_verifier.py} & Step-aware verifier 策略。 \\
+      \texttt{models/deberta\_verifier.py} & DeBERTa 本地 verifier 封装。 \\
       \texttt{strategies/rag\_cot.py} & 检索增强 CoT。 \\
       \texttt{strategies/multi\_agent\_debate.py} & 多 Agent debate。 \\
       \texttt{experiments/runs/*.json} & 实验结果与逐样本输出。 \\
@@ -519,7 +577,6 @@ final = _aggregate_votes(predictions, weights)
   \centering
   \vspace{2.2cm}
   {\Huge 谢谢！}\\[0.8em]
-  {\large 欢迎提问}
 \end{frame}
 
 \end{document}

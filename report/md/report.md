@@ -196,15 +196,21 @@ Step-Aware Verifier 为每条推理路径引入外部验证器打分。本实现
 
 **LLM Verifier 模式**：用 LLM 对路径的每一步进行正确性打分，取平均分作为路径总分。
 
-**本地 DeBERTa Verifier 模式**：加载自定义微调的 DeBERTa-v3-large 模型，取 `[CLS]` 位置的 `SOLUTION-CORRECT` 标签 softmax 概率作为路径分。推理完全在本地 CUDA 上执行，零 API 费用。
+**本地 DeBERTa Verifier 模式**：加载自定义微调的 DeBERTa-v3-large 模型（`k1r1same/aqua-verifier`），采用 Token 分类训练、序列分类推理——训练时 STEP 标签仅做辅助 loss（权重 0.1），推理时只取 `[CLS]` 位置的 `SOLUTION-CORRECT` softmax 概率作为路径分。推理在本地 CUDA 上执行，零 API 费用。模型权重通过 HuggingFace 分发，首次使用自动下载。
 
-**聚合公式**：
+**多 Prompt 扩展**：支持 `--n_prompts` 参数，每道题生成多个不同 prompt（各嵌入随机 few-shot 示例），每个 prompt 采样 `--n_paths` 条路径，增加多样性。
+
+**聚合公式**（加权投票）：
 
 $$
 \\hat{a} = \arg\max_{a} \sum_{i=1}^{N} V(y_i) \cdot \mathbb{1}[a_i = a]
 $$
 
-其中 $V(y_i)$ 为 verifier 对路径 $y_i$ 的评分。
+其中 $V(y_i)$ 为 verifier 对路径 $y_i$ 的评分，按答案标签累加，选总权重最高的答案。
+
+**输入格式**：`[CLS] {solution} && Q: {question} {options}`，步骤间用 `%%` 分隔，末尾追加 `####{answer}`。
+
+**评分公式**：`score = softmax(logits[0, 0])[SOLUTION-CORRECT] × 10`（position 0 = BOS [CLS] token）。
 
 ### 3.5 RAG + COT 策略
 
