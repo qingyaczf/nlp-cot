@@ -508,18 +508,23 @@ final = _aggregate_votes(predictions, weights)
 
 \begin{frame}{方法对比总结：不同策略解决不同失败模式}
   \small
-  \begin{tabularx}{\linewidth}{lYYY}
+  \begin{tabular}{p{2.5cm} p{3.5cm} p{4.5cm} p{4.5cm}}
     \toprule
     方法 & 主要解决的问题 & 优势 & 局限 \\
     \midrule
     Self-Consistency & 单路径随机错误 & 简单、低风险、可直接替换策略文件 & 多次采样增加调用成本 \\
+    \addlinespace[2pt]
     Step Verifier (LLM) & 中间步骤错误 & 可解释性强，能定位 step 级问题 & 耗时极高 \\
+    \addlinespace[2pt]
     Step Verifier (DeBERTa) & 路径质量评分 & 验证阶段本地推理，零 API & 训练数据风格不匹配 \\
+    \addlinespace[2pt]
     RAG + CoT & 外部知识不足 & 对知识密集题更有潜力 & 数学题收益受检索质量限制 \\
+    \addlinespace[2pt]
     Debate & 单模型视角偏差 & 多角色互相纠错，准确率最高 & 调度复杂、成本最高 \\
+    \addlinespace[2pt]
     Harness & 实验不可复现 & 统一接口、结果留痕、便于协作 & 需要规范每个策略的输入输出 \\
     \bottomrule
-  \end{tabularx}
+  \end{tabular}
 \end{frame}
 
 \begin{frame}{结论：本项目的核心贡献}
